@@ -75,6 +75,12 @@ export function saveAccount(account: { sub: string; email: string; name: string;
 export function gmailForAccount(account: { sub: string; encrypted_credentials: string }) {
   const oauth = createOAuthClient();
   const initial = getStoredCredentials(account.encrypted_credentials);
+  const tokenAudience = googleTokenAudience(initial.id_token);
+  if (tokenAudience && env.GOOGLE_CLIENT_ID && !tokenAudience.includes(env.GOOGLE_CLIENT_ID)) {
+    const mismatch = new Error("This Gmail authorization belongs to a different Google OAuth client.") as Error & { code: string };
+    mismatch.code = "GOOGLE_OAUTH_CLIENT_MISMATCH";
+    throw mismatch;
+  }
   oauth.setCredentials({
     access_token: initial.access_token ?? undefined,
     refresh_token: initial.refresh_token ?? undefined,
@@ -91,6 +97,16 @@ export function gmailForAccount(account: { sub: string; encrypted_credentials: s
       .run(encryptSecret(JSON.stringify(merged)), Date.now(), account.sub);
   });
   return { gmail: google.gmail({ version: "v1", auth: oauth }), oauth, get refreshed() { return refreshed; } };
+}
+
+export function googleTokenAudience(idToken: string | null | undefined): string[] | undefined {
+  if (!idToken) return undefined;
+  try {
+    const payload = JSON.parse(Buffer.from(idToken.split(".")[1] ?? "", "base64url").toString("utf8")) as { aud?: unknown };
+    if (typeof payload.aud === "string") return [payload.aud];
+    if (Array.isArray(payload.aud) && payload.aud.every((value) => typeof value === "string")) return payload.aud;
+  } catch { return undefined; }
+  return undefined;
 }
 
 export async function revokeAccountCredentials(encrypted: string): Promise<void> {

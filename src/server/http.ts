@@ -40,6 +40,9 @@ export async function readJson(request: Request, maxBytes = 256_000): Promise<un
 export function failure(error: unknown, fallback = "The request could not be completed."): NextResponse {
   if (error instanceof ZodError) return NextResponse.json({ error: "Please check the provided information." }, { status: 400 });
   if (error instanceof InvalidJsonError) return NextResponse.json({ error: error.message }, { status: 400 });
+  if ((error as { code?: string } | null)?.code === "GOOGLE_OAUTH_CLIENT_MISMATCH") {
+    return NextResponse.json({ error: "The stored Gmail authorization was issued for a different GOOGLE_CLIENT_ID. Reconnect Gmail with the current Google OAuth client, or restore the client ID that issued this account's grant." }, { status: 401 });
+  }
   const providerData = (error as { response?: { status?: number; data?: { error?: unknown; errors?: Array<{ reason?: string }> } } } | null)?.response;
   const status = providerData?.status;
   const oauthCode = typeof providerData?.data?.error === "string" ? providerData.data.error : "";

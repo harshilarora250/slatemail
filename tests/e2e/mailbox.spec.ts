@@ -82,6 +82,50 @@ test("loads mocked Gmail, opens a message, and confirms mailbox actions", async 
   await expect.poll(() => actions).toContain("star");
 });
 
+test("collapses the sidebar cleanly and keeps Settings accessible from the top bar", async ({ page }) => {
+  await mockConnectedGmail(page);
+  await page.goto("/");
+  const sidebar = page.getByRole("complementary", { name: "Mailbox navigation" });
+  await page.getByRole("button", { name: "Collapse sidebar" }).click();
+  await expect(sidebar).toHaveClass(/sidebar-collapsed/);
+  await expect(sidebar.getByRole("button", { name: "Compose message" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open settings" })).toBeVisible();
+  await page.getByRole("button", { name: "Open settings" }).click();
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  await page.getByRole("button", { name: "Close settings" }).click();
+  await page.getByRole("button", { name: "Expand sidebar" }).click();
+  await expect(sidebar).not.toHaveClass(/sidebar-collapsed/);
+});
+
+test("keeps the page fixed while the email list scrolls independently", async ({ page }) => {
+  await mockConnectedGmail(page);
+  const manyThreads = Array.from({ length: 40 }, (_, index): MailThread => ({
+    ...inboxThread,
+    id: `thread-${index}`,
+    messages: [{ ...inboxThread.messages[0]!, id: `message-${index}`, threadId: `thread-${index}`, subject: `Message ${index}` }],
+  }));
+  await page.route(/\/api\/mail\?/, (route) => route.fulfill({ json: { threads: manyThreads, resultSizeEstimate: manyThreads.length } }));
+  await page.goto("/");
+  await expect(page.getByText("Message 39")).toBeVisible();
+  const list = page.locator(".list-scroll");
+  const metrics = await list.evaluate((element) => ({ client: element.clientHeight, scroll: element.scrollHeight }));
+  expect(metrics.scroll).toBeGreaterThan(metrics.client);
+  await list.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  await expect.poll(() => list.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+});
+
+test("shows an actionable reconnect message for a Gmail OAuth client failure", async ({ page }) => {
+  await mockConnectedGmail(page);
+  await page.route(/\/api\/mail\?/, (route) => route.fulfill({
+    status: 401,
+    json: { error: "Google rejected the configured OAuth client. Check GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, then reconnect Gmail." },
+  }));
+  await page.goto("/");
+  await expect(page.locator(".settings-notice[role=alert]")).toContainText("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
+  await expect(page.getByRole("link", { name: "Reconnect Gmail" })).toHaveAttribute("href", "/api/auth/google");
+});
+
 test("searches Gmail through its query API and opens the result", async ({ page }) => {
   const queries: string[] = [];
   page.on("request", (request) => {
@@ -109,7 +153,7 @@ test("saves a local-first draft, restores it from IndexedDB, and persists theme 
   await page.getByRole("button", { name: "Drafts" }).click();
   await expect(page.getByText("Recovered after reload")).toBeVisible();
 
-  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByLabel("Theme").selectOption("dark");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.getByRole("button", { name: "Close settings" }).click();
@@ -131,7 +175,7 @@ test("loads saved OpenRouter settings and sends only manually entered non-email 
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "AI", exact: true }).click();
   await page.getByRole("combobox", { name: "External AI provider" }).selectOption("openrouter");
   await expect(page.getByPlaceholder("Model ID supported by OpenRouter")).toHaveValue("openrouter/free");

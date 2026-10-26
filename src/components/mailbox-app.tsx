@@ -574,6 +574,7 @@ export function MailboxApp() {
           <label className="search-wrap"><Search size={15} aria-hidden="true" /><input ref={searchRef} className="search-input" type="search" placeholder="Search mail" aria-label="Search mail" value={searchValue} onChange={(event) => setSearchValue(event.target.value)} /><kbd className="shortcut-hint">/</kbd></label>
           <span className="toolbar-spacer" />
           <span className="sync-state" aria-live="polite">{offline ? <><span className="status-dot" />Offline</> : syncing ? <><LoaderCircle size={12} className="animate-spin" />Syncing</> : account.connected ? <><span className="status-dot connected" />Connected</> : null}</span>
+          <AppIconButton label="Open settings" onClick={() => { setSettingsOpen(true); captureOptional("settings_opened"); }}><Settings2 size={15} /></AppIconButton>
           <AppIconButton label="Sync now" onClick={() => void syncMailbox()} disabled={!account.connected || syncing}><RefreshCw size={15} className={syncing ? "animate-spin" : ""} /></AppIconButton>
         </header>
         {account.connected && oauthMessage && <div className="settings-notice" role="alert" style={{ margin: 12 }}>{oauthMessage}</div>}

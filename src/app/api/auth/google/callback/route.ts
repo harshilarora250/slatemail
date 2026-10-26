@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { appUrl } from "@/server/env";
-import { createOAuthClient, previousAccountCredentials, saveAccount } from "@/server/google";
+import { createOAuthClient, googleTokenAudience, previousAccountCredentials, saveAccount } from "@/server/google";
 import { createSession, getSessionAccount } from "@/server/session";
 import { mergeRefreshedCredentials, oauthStateMatches } from "@/server/oauth-security";
 
@@ -47,7 +47,12 @@ export async function GET(request: NextRequest) {
     const existingSession = getSessionAccount(request);
     if (existingSession && existingSession.sub !== identity.sub) return redirectWithError("account-mismatch");
     const previousCredentials = previousAccountCredentials(identity.sub);
-    const credentials = previousCredentials ? mergeRefreshedCredentials(previousCredentials, tokens) : tokens;
+    const previousGrantMatchesCurrentClient = !!process.env.GOOGLE_CLIENT_ID
+      && !!googleTokenAudience(previousCredentials?.id_token)?.includes(process.env.GOOGLE_CLIENT_ID);
+    const refreshToken = tokens.refresh_token ?? (previousGrantMatchesCurrentClient ? previousCredentials?.refresh_token : undefined);
+    const credentials = previousCredentials
+      ? { ...mergeRefreshedCredentials(previousCredentials, tokens), refresh_token: refreshToken }
+      : { ...tokens, refresh_token: refreshToken };
     if (!credentials.refresh_token) return redirectWithError("refresh-token-missing");
     saveAccount({
       sub: identity.sub,
