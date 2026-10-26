@@ -117,9 +117,35 @@ test("saves a local-first draft, restores it from IndexedDB, and persists theme 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 });
 
-test("shows a disconnected first-run state and reports missing Google setup honestly", async ({ page }) => {
+test("loads saved OpenRouter settings and sends only manually entered non-email text", async ({ page }) => {
+  let submitted: { provider?: string; model?: string; text?: string } | undefined;
+  await mockConnectedGmail(page);
+  await page.route("**/api/ai/settings", (route) => route.fulfill({ json: { providers: {
+    openai: { configured: false },
+    anthropic: { configured: false },
+    openrouter: { configured: true, model: "openrouter/free" },
+  } } }));
+  await page.route("**/api/ai/manual-text", async (route) => {
+    submitted = route.request().postDataJSON() as typeof submitted;
+    await route.fulfill({ json: { result: "Revised public note." } });
+  });
+
   await page.goto("/");
-  await expect(page.getByText("SlateMail does not fill your inbox with sample data.")).toBeVisible();
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "AI", exact: true }).click();
+  await page.getByRole("combobox", { name: "External AI provider" }).selectOption("openrouter");
+  await expect(page.getByPlaceholder("Model ID supported by OpenRouter")).toHaveValue("openrouter/free");
+  const manualText = "Please rewrite this short public announcement.";
+  await page.getByPlaceholder("Enter non-email text to revise…").fill(manualText);
+  await page.getByRole("button", { name: "Send entered text to provider" }).click();
+  await expect(page.getByText("Revised public note.")).toBeVisible();
+  expect(submitted).toMatchObject({ provider: "openrouter", model: "openrouter/free", text: manualText });
+});
+
+test("shows a disconnected first-run state and reports missing Google setup honestly", async ({ page }) => {
+  await page.route("**/api/auth/google", (route) => route.fulfill({ status: 302, headers: { location: "/?oauth=not-configured" } }));
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Email, with room to think." })).toBeVisible();
   await page.getByRole("link", { name: "Connect Gmail" }).click();
   await expect(page.locator('p[role="alert"]')).toContainText("Google OAuth is not configured");
 });

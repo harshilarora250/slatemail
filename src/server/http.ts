@@ -40,7 +40,26 @@ export async function readJson(request: Request, maxBytes = 256_000): Promise<un
 export function failure(error: unknown, fallback = "The request could not be completed."): NextResponse {
   if (error instanceof ZodError) return NextResponse.json({ error: "Please check the provided information." }, { status: 400 });
   if (error instanceof InvalidJsonError) return NextResponse.json({ error: error.message }, { status: 400 });
-  const status = (error as { code?: number; response?: { status?: number } } | null)?.response?.status;
+  const providerData = (error as { response?: { status?: number; data?: { error?: unknown; errors?: Array<{ reason?: string }> } } } | null)?.response;
+  const status = providerData?.status;
+  const oauthCode = typeof providerData?.data?.error === "string" ? providerData.data.error : "";
+  const nestedGoogleError = providerData?.data?.error && typeof providerData.data.error === "object"
+    ? providerData.data.error as { errors?: Array<{ reason?: string }> }
+    : undefined;
+  const reasons = [...(providerData?.data?.errors ?? []), ...(nestedGoogleError?.errors ?? [])]
+    .map((item) => item.reason).filter((reason): reason is string => !!reason);
+  if (oauthCode === "invalid_client") {
+    return NextResponse.json({ error: "Google rejected the configured OAuth client. Check that GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET belong to the same Web OAuth client, restart SlateMail, then reconnect Gmail." }, { status: 401 });
+  }
+  if (oauthCode === "invalid_grant") {
+    return NextResponse.json({ error: "Google's refresh grant is revoked or no longer valid. Disconnect Gmail, then connect it again and accept the requested permissions." }, { status: 401 });
+  }
+  if (status === 403 && (reasons.includes("accessNotConfigured") || reasons.includes("SERVICE_DISABLED"))) {
+    return NextResponse.json({ error: "The Gmail API is disabled for this Google Cloud project. Enable Gmail API in Google Cloud Console, then reconnect." }, { status: 503 });
+  }
+  if (status === 403 && reasons.includes("insufficientPermissions")) {
+    return NextResponse.json({ error: "Google did not grant the Gmail permissions SlateMail needs. Reconnect and accept the requested Gmail scopes." }, { status: 401 });
+  }
   if (status === 400) return NextResponse.json({ error: "Gmail rejected the request. Check the message details or mailbox query and try again." }, { status: 400 });
   if (status === 409) return NextResponse.json({ error: "This draft changed in Gmail. Your local version has been kept; compare and resolve the conflict before syncing." }, { status: 409 });
   if (status === 413) return NextResponse.json({ error: error instanceof Error && error.message === "Attachment data exceeds this operation's size limit." ? error.message : "Request or attachment data exceeds this operation's size limit." }, { status: 413 });

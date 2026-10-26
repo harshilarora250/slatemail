@@ -78,6 +78,12 @@ OAuth state is validated, a PKCE verifier is used, ID tokens are audience-checke
 
 Reconnect hints the currently connected Google identity and rejects a callback for a different Google subject. To switch Gmail accounts, disconnect the current account first.
 
+### Gmail reconnect errors
+
+- **OAuth client rejected / `invalid_client`:** `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` must belong to the same active Web OAuth client. After correcting them, restart SlateMail and reconnect the same Gmail account so Google issues a refresh token for that client.
+- **Gmail API disabled:** enable Gmail API in the same Google Cloud project as the OAuth client.
+- **Refresh grant revoked / `invalid_grant`:** remove SlateMail from the Google Account's third-party access list, then reconnect and accept the requested scopes.
+
 ### Manual Gmail test checklist
 
 Use a dedicated test Gmail account after configuring Cloud OAuth:
@@ -97,6 +103,8 @@ In Settings → AI, email actions (summaries, local reply drafting, rewriting, t
 If the local runtime/model is missing, email AI actions report that state and do not fall back to a cloud model. AI-generated replies remain drafts until a user explicitly reviews and sends them. Automatic AI processing is disabled in V1.
 
 OpenRouter, OpenAI, and Anthropic BYOK credentials can be saved in Settings. They are encrypted server-side, never placed in browser storage, and never sent to another provider. External adapters are isolated to the manually entered non-email text tool; they do not receive Gmail objects, threads, drafts, search results, attachments, or mailbox access. Provider-specific request formats are used, and custom endpoints must remain on that provider's official HTTPS host. Do not paste email or email-derived text into the external text tool.
+
+For OpenRouter, leave the endpoint blank to use `https://openrouter.ai/api/v1/chat/completions`, enter a model ID available to your key (for example `openrouter/free`), save the key, and use **Test connection**. That test sends only a short `OK` request; successful connectivity does not enable cloud AI on email content.
 
 ## PostHog
 

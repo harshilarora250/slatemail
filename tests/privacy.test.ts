@@ -46,6 +46,23 @@ describe("external AI privacy boundary", () => {
     expect(() => validateProviderEndpoint("openrouter", "https://openrouter.ai.evil.example")).toThrow(/official host/);
   });
 
+  it.each([
+    ["https://openrouter.ai", "https://openrouter.ai/api/v1/chat/completions"],
+    ["https://openrouter.ai/api/v1", "https://openrouter.ai/api/v1/chat/completions"],
+    ["https://openrouter.ai/api/v1/chat/completions", "https://openrouter.ai/api/v1/chat/completions"],
+  ])("normalizes OpenRouter base endpoint %s without duplicating API paths", async (endpoint, expectedUrl) => {
+    const fetcher = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => {
+      void _url;
+      void _init;
+      return new Response(JSON.stringify({ choices: [{ message: { content: "OK" } }] }), { status: 200 });
+    });
+    await completeExternalText({
+      provider: "openrouter", apiKey: "key", model: "openrouter/free",
+      endpoint, text: userSuppliedText("Reply with OK"), fetcher,
+    });
+    expect(String(fetcher.mock.calls[0]?.[0])).toBe(expectedUrl);
+  });
+
   it("returns a useful invalid-key error without exposing a provider response body", async () => {
     const fetcher = async (_url: RequestInfo | URL, _init?: RequestInit) => {
       void _url;

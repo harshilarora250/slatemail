@@ -17,7 +17,12 @@ export const GMAIL_SCOPES = [
 
 export function createOAuthClient(): Auth.OAuth2Client {
   const config = requireGoogleConfig();
-  return new google.auth.OAuth2(config.clientId, config.clientSecret, config.redirectUri);
+  return new google.auth.OAuth2({
+    clientId: config.clientId,
+    clientSecret: config.clientSecret,
+    redirectUri: config.redirectUri,
+    forceRefreshOnFailure: true,
+  });
 }
 
 export function authorizationUrl(state: string, verifier: string, loginHint?: string): string {

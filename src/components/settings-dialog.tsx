@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Link2, LockKeyhole, Palette, RotateCcw, ShieldCheck, SlidersHorizontal, Sparkles, Trash2,
   X,
@@ -48,6 +48,7 @@ export function SettingsDialog({
   const [apiKey, setApiKey] = useState("");
   const [credentialSaved, setCredentialSaved] = useState(false);
   const [savingCredential, setSavingCredential] = useState(false);
+  const [aiSettingsLoading, setAiSettingsLoading] = useState(true);
   const [aiError, setAiError] = useState("");
   const [localSettings] = useState(readLocalAISettings);
   const [localEndpoint, setLocalEndpoint] = useState(localSettings.endpoint);
@@ -57,6 +58,7 @@ export function SettingsDialog({
   const [manualResult, setManualResult] = useState("");
   const [manualBusy, setManualBusy] = useState(false);
   const dialogRef = useModalFocus<HTMLElement>();
+  const aiSettingsRequest = useRef(0);
   const posthogConfigured = !!process.env.NEXT_PUBLIC_POSTHOG_KEY;
 
   useEffect(() => {
@@ -70,15 +72,19 @@ export function SettingsDialog({
   }
 
   async function loadAISettings(selectedProvider: AIProvider = provider) {
+    const requestId = ++aiSettingsRequest.current;
+    setAiSettingsLoading(true);
     try {
       const response = await fetch("/api/ai/settings", { cache: "no-store" });
       if (!response.ok) return;
       const value = await response.json() as { providers: Record<string, { model?: string; endpoint?: string; configured: boolean }> };
+      if (requestId !== aiSettingsRequest.current) return;
       const selected = value.providers[selectedProvider];
-      if (selected?.model) setModel(selected.model);
-      if (selected?.endpoint) setEndpoint(selected.endpoint);
+      setModel(selected?.model ?? "");
+      setEndpoint(selected?.endpoint ?? "");
       setCredentialSaved(!!selected?.configured);
     } catch { /* AI settings are optional when Gmail is disconnected. */ }
+    finally { if (requestId === aiSettingsRequest.current) setAiSettingsLoading(false); }
   }
 
   async function saveCredential() {
@@ -186,7 +192,7 @@ export function SettingsDialog({
             <div className="settings-notice" style={{ marginBottom: 14 }}><LockKeyhole size={14} style={{ verticalAlign: "middle", marginRight: 6 }} />Email bodies, subjects, attachments, and derived email content are never sent to OpenAI, Anthropic, OpenRouter, or another cloud AI. Email actions require an explicitly configured local runtime.</div>
             <div className="settings-group"><Row title="Local runtime" detail="Email summaries and reply drafts run directly from this browser to your local Ollama instance."><span className="sync-state"><span className={`status-dot ${localStatus.startsWith("Connected") ? "connected" : ""}`} />Local only</span></Row><label className="settings-row-copy" style={{ display: "grid", marginTop: 10 }}>Local Ollama URL<input className="settings-text settings-wide-input" value={localEndpoint} onChange={(event) => setLocalEndpoint(event.target.value)} placeholder="http://localhost:11434" /></label><label className="settings-row-copy" style={{ display: "grid", marginTop: 10 }}>Model name<input className="settings-text settings-wide-input" value={localModel} onChange={(event) => setLocalModel(event.target.value)} placeholder="e.g. llama3.2" /></label><div style={{ display: "flex", gap: 7, marginTop: 9 }}><button className="button-secondary" onClick={() => void testLocalRuntime()}>Test local runtime</button><button className="button-secondary" onClick={saveLocalAI}>Save local settings</button></div>{localStatus && <p role="status" className="settings-description" style={{ marginTop: 8, marginBottom: 0 }}>{localStatus}</p>}</div>
             <div className="settings-group"><Row title="Automatic processing" detail="Off in V1. SlateMail never processes email in the background." ><span className="settings-description" style={{ margin: 0 }}>Disabled</span></Row></div>
-            <div className="settings-group"><Row title="External provider" detail="Cloud API credentials are encrypted server-side and only receive manual text entered below."><select className="settings-select" value={provider} onChange={(event) => { const next = event.target.value as AIProvider; setProvider(next); setCredentialSaved(false); setModel(""); setEndpoint(""); setAiError(""); void loadAISettings(next); }}><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="openrouter">OpenRouter</option></select></Row><label className="settings-row-copy" style={{ display: "grid", marginTop: 12 }}>Model<input className="settings-text settings-wide-input" value={model} onChange={(event) => setModel(event.target.value)} placeholder={`Model ID supported by ${providerNames[provider]}`} /></label><label className="settings-row-copy" style={{ display: "grid", marginTop: 10 }}>Custom API path on provider host (optional)<input className="settings-text settings-wide-input" value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder="Provider default (same HTTPS host)" /></label><label className="settings-row-copy" style={{ display: "grid", marginTop: 10 }}>API key{credentialSaved && <span>Saved encrypted; leave blank to keep it.</span>}<input className="settings-text settings-wide-input" type="password" autoComplete="new-password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={credentialSaved ? "Replace key" : "Paste API key"} /></label><div style={{ display: "flex", gap: 7, marginTop: 10 }}><button className="button-primary" onClick={() => void saveCredential()} disabled={savingCredential || (!apiKey && !credentialSaved)}>{savingCredential ? "Working…" : "Save settings"}</button><button className="button-secondary" onClick={() => void testProvider()} disabled={savingCredential || !credentialSaved}>Test connection</button>{credentialSaved && <button className="danger-button" onClick={() => void removeCredential()}>Remove key</button>}</div>{aiError && <p role="status" className="settings-description" style={{ color: aiError.startsWith("Connection") ? "var(--success)" : "var(--danger)", marginTop: 8, marginBottom: 0 }}>{aiError}</p>}</div>
+      <div className="settings-group"><Row title="External provider" detail="Cloud API credentials are encrypted server-side and only receive manual text entered below."><select className="settings-select" aria-label="External AI provider" value={provider} disabled={aiSettingsLoading} onChange={(event) => { const next = event.target.value as AIProvider; setProvider(next); setCredentialSaved(false); setModel(""); setEndpoint(""); setAiError(""); void loadAISettings(next); }}><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="openrouter">OpenRouter</option></select></Row>{aiSettingsLoading && <p className="settings-description" role="status">Loading saved provider settings…</p>}<label className="settings-row-copy" style={{ display: "grid", marginTop: 12 }}>Model<input className="settings-text settings-wide-input" value={model} disabled={aiSettingsLoading} onChange={(event) => setModel(event.target.value)} placeholder={`Model ID supported by ${providerNames[provider]}`} /></label><label className="settings-row-copy" style={{ display: "grid", marginTop: 10 }}>Custom API path on provider host (optional)<input className="settings-text settings-wide-input" value={endpoint} disabled={aiSettingsLoading} onChange={(event) => setEndpoint(event.target.value)} placeholder="Provider default (same HTTPS host)" /></label><label className="settings-row-copy" style={{ display: "grid", marginTop: 10 }}>API key{credentialSaved && <span>Saved encrypted; leave blank to keep it.</span>}<input className="settings-text settings-wide-input" type="password" autoComplete="new-password" value={apiKey} disabled={aiSettingsLoading} onChange={(event) => setApiKey(event.target.value)} placeholder={credentialSaved ? "Replace key" : "Paste API key"} /></label><div style={{ display: "flex", gap: 7, marginTop: 10 }}><button className="button-primary" onClick={() => void saveCredential()} disabled={aiSettingsLoading || savingCredential || (!apiKey && !credentialSaved)}>{savingCredential ? "Working…" : "Save settings"}</button><button className="button-secondary" onClick={() => void testProvider()} disabled={aiSettingsLoading || savingCredential || !credentialSaved}>Test connection</button>{credentialSaved && <button className="danger-button" onClick={() => void removeCredential()} disabled={aiSettingsLoading}>Remove key</button>}</div>{aiError && <p role="status" className="settings-description" style={{ color: aiError.startsWith("Connection") ? "var(--success)" : "var(--danger)", marginTop: 8, marginBottom: 0 }}>{aiError}</p>}</div>
             <div className="settings-group"><strong style={{ fontSize: 11 }}>Manual cloud text tool</strong><p className="settings-description" style={{ marginTop: 5, marginBottom: 10 }}>Only text you deliberately enter here is sent to {providerNames[provider]}. Never paste email or email-derived content.</p><textarea className="settings-text settings-wide-input" style={{ minHeight: 72, resize: "vertical" }} value={manualText} onChange={(event) => setManualText(event.target.value)} placeholder="Enter non-email text to revise…" /><button className="button-secondary" style={{ marginTop: 8 }} onClick={() => void sendManualText()} disabled={!credentialSaved || manualBusy || !manualText.trim()}>{manualBusy ? "Sending text…" : "Send entered text to provider"}</button>{manualResult && <div className="settings-notice" style={{ whiteSpace: "pre-wrap", marginTop: 9 }}>{manualResult}</div>}</div>
           </>}
           {section === "privacy" && <>

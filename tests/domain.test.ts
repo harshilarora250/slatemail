@@ -72,4 +72,12 @@ describe("mailbox operations and retry correctness", () => {
     expect(body.error).toContain("rate limiting");
     expect(JSON.stringify(body)).not.toContain("provider-secret-payload");
   });
+
+  it("explains an OAuth client mismatch instead of asking for an unhelpful reconnect", async () => {
+    const response = failure({ response: { status: 401, data: { error: "invalid_client", error_description: "private client diagnostic" } } });
+    const body = await response.json() as { error: string };
+    expect(response.status).toBe(401);
+    expect(body.error).toContain("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET");
+    expect(body.error).not.toContain("private client diagnostic");
+  });
 });

@@ -18,6 +18,13 @@ function redirectWithError(code: string) {
   return response;
 }
 
+function oauthFailureCode(error: unknown): string {
+  const responseError = (error as { response?: { data?: { error?: unknown } } } | null)?.response?.data?.error;
+  if (responseError === "invalid_client") return "oauth-client-mismatch";
+  if (responseError === "invalid_grant") return "oauth-grant-invalid";
+  return "connection-failed";
+}
+
 export async function GET(request: NextRequest) {
   const oauthError = request.nextUrl.searchParams.get("error");
   if (oauthError) return redirectWithError("cancelled");
@@ -52,7 +59,7 @@ export async function GET(request: NextRequest) {
     createSession(identity.sub, response);
     clearTransaction(response);
     return response;
-  } catch {
-    return redirectWithError("connection-failed");
+  } catch (error) {
+    return redirectWithError(oauthFailureCode(error));
   }
 }

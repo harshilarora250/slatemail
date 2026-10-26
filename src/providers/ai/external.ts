@@ -29,6 +29,23 @@ export function validateProviderEndpoint(provider: ExternalProvider, configured?
   return endpoint;
 }
 
+function providerPath(provider: ExternalProvider, pathname: string): string {
+  const base = pathname.replace(/\/+$/, "");
+  if (provider === "anthropic") {
+    if (base.endsWith("/v1/messages")) return base;
+    if (base.endsWith("/v1")) return `${base}/messages`;
+    return `${base}/v1/messages`;
+  }
+  if (base.endsWith("/chat/completions")) return base;
+  if (provider === "openai") {
+    return base.endsWith("/v1") ? `${base}/chat/completions` : `${base}/v1/chat/completions`;
+  }
+  if (base.endsWith("/api/v1")) return `${base}/chat/completions`;
+  if (base.endsWith("/api")) return `${base}/v1/chat/completions`;
+  if (base.endsWith("/v1")) return `${base}/chat/completions`;
+  return `${base}/api/v1/chat/completions`;
+}
+
 export async function completeExternalText(input: {
   provider: ExternalProvider;
   apiKey: string;
@@ -38,13 +55,12 @@ export async function completeExternalText(input: {
   fetcher?: typeof fetch;
 }): Promise<string> {
   const url = validateProviderEndpoint(input.provider, input.endpoint);
-  const basePath = url.pathname.replace(/\/$/, "");
+  url.pathname = providerPath(input.provider, url.pathname);
   const fetcher = input.fetcher ?? fetch;
   let response: Response;
 
   try {
     if (input.provider === "anthropic") {
-      url.pathname = `${basePath.endsWith("/v1") ? basePath : `${basePath}/v1`}/messages`;
       response = await fetcher(url, {
         method: "POST",
         redirect: "error",
@@ -53,11 +69,6 @@ export async function completeExternalText(input: {
         signal: AbortSignal.timeout(30_000),
       });
     } else {
-      if (input.provider === "openai") {
-        url.pathname = `${basePath.endsWith("/v1") ? basePath : `${basePath}/v1`}/chat/completions`;
-      } else {
-        url.pathname = `${basePath.endsWith("/api") ? basePath : `${basePath}/api`}/v1/chat/completions`;
-      }
       response = await fetcher(url, {
         method: "POST",
         redirect: "error",
