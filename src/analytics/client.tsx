@@ -5,22 +5,29 @@ import posthog from "posthog-js";
 
 const allowedEvents = new Set([
   "application_opened",
+  "mailbox_opened",
+  "message_opened",
+  "compose_opened",
+  "search_used",
+  "message_send_confirmed",
   "settings_opened",
   "theme_changed",
-  "feature_opened",
   "ai_provider_settings_opened",
+  "local_ai_actions_opened",
+  "local_ai_action_completed",
 ]);
 
 let initialized = false;
 let captureEnabled = false;
 
 function startAnalytics(): void {
-  const key = process.env.NEXT_PUBLIC_POSTHOG_KEY;
+  const key = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN || process.env.NEXT_PUBLIC_POSTHOG_KEY;
   const host = process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com";
   if (!key) return;
   if (!initialized) {
     posthog.init(key, {
       api_host: host,
+      defaults: "2026-08-30",
       autocapture: false,
       capture_pageview: false,
       capture_pageleave: false,
@@ -50,7 +57,7 @@ export function setAnalyticsRuntimeEnabled(enabled: boolean): void {
     }
     return;
   }
-  if (!process.env.NEXT_PUBLIC_POSTHOG_KEY) {
+  if (!process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN && !process.env.NEXT_PUBLIC_POSTHOG_KEY) {
     captureEnabled = false;
     return;
   }

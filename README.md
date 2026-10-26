@@ -108,7 +108,7 @@ For OpenRouter, leave the endpoint blank to use `https://openrouter.ai/api/v1/ch
 
 ## PostHog
 
-Optional client analytics use `posthog-js`. Set `NEXT_PUBLIC_POSTHOG_KEY` and `NEXT_PUBLIC_POSTHOG_HOST` to your project values to enable delivery. No project key is committed. Autocapture, pageview events, identity tracking, and session replay are off; the event wrapper allows only a small event-name allowlist and strips properties.
+Optional client analytics use `posthog-js`. Set `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` and `NEXT_PUBLIC_POSTHOG_HOST` to your project values to enable delivery. The older `NEXT_PUBLIC_POSTHOG_KEY` variable is also accepted for compatibility. No project token is committed. The event allowlist covers application/mailbox opened, message opened, compose opened, search used, confirmed send, settings/theme changes, and local AI actions. Events carry no properties; in particular, they never include search text, addresses, message IDs/content, AI model/provider values, or credentials. Autocapture, pageview events, identity tracking, and session replay are off.
 
 The requested wizard command was attempted:
 

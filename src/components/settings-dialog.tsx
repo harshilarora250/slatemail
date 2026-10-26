@@ -9,6 +9,7 @@ import type { AccountStatus } from "@/domain/mail";
 import type { UserPreferences, ThemePreference, AccentPreference, DensityPreference } from "@/client/preferences";
 import { validateLocalRuntime } from "@/providers/ai/local-runtime";
 import { useModalFocus } from "@/components/use-modal-focus";
+import { captureOptional } from "@/analytics/client";
 
 type SettingsSection = "appearance" | "account" | "ai" | "privacy" | "shortcuts";
 type AIProvider = "openrouter" | "openai" | "anthropic";
@@ -59,7 +60,7 @@ export function SettingsDialog({
   const [manualBusy, setManualBusy] = useState(false);
   const dialogRef = useModalFocus<HTMLElement>();
   const aiSettingsRequest = useRef(0);
-  const posthogConfigured = !!process.env.NEXT_PUBLIC_POSTHOG_KEY;
+  const posthogConfigured = !!(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN || process.env.NEXT_PUBLIC_POSTHOG_KEY);
 
   useEffect(() => {
     void loadAISettings();
@@ -68,6 +69,7 @@ export function SettingsDialog({
   }, []);
 
   function update(next: Partial<UserPreferences>) {
+    if (next.theme && next.theme !== preferences.theme) captureOptional("theme_changed");
     onPreferencesChange({ ...preferences, ...next });
   }
 
@@ -174,7 +176,7 @@ export function SettingsDialog({
     <section ref={dialogRef} className="dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <header className="dialog-header"><strong className="dialog-title" id="settings-title">Settings</strong><button type="button" className="icon-button" aria-label="Close settings" onClick={onClose}><X size={16} /></button></header>
       <div className="settings-layout">
-        <nav className="settings-nav" aria-label="Settings sections">{sections.map(({ id, label, icon: Icon }) => <button key={id} className={section === id ? "active" : ""} onClick={() => setSection(id)}><Icon size={14} />{label}</button>)}</nav>
+        <nav className="settings-nav" aria-label="Settings sections">{sections.map(({ id, label, icon: Icon }) => <button key={id} className={section === id ? "active" : ""} onClick={() => { setSection(id); if (id === "ai") captureOptional("ai_provider_settings_opened"); }}><Icon size={14} />{label}</button>)}</nav>
         <div className="settings-content">
           <h2 className="settings-heading">{sectionInfo[section].title}</h2><p className="settings-description">{sectionInfo[section].detail}</p>
           {section === "appearance" && <>

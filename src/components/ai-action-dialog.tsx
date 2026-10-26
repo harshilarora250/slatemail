@@ -5,6 +5,7 @@ import { LoaderCircle, LockKeyhole, Sparkles, X } from "lucide-react";
 import type { MailDraft, MailThread } from "@/domain/mail";
 import { runLocalMailAI, type LocalMailTask } from "@/providers/ai/local-runtime";
 import { useModalFocus } from "@/components/use-modal-focus";
+import { captureOptional } from "@/analytics/client";
 
 const settingsKey = "slatemail-local-ai-v1";
 const taskLabels: Record<LocalMailTask, string> = {
@@ -71,6 +72,7 @@ export function AIActionDialog({
       });
       if (!generated.trim()) throw new Error("The local model returned no text. Try a different model or prompt.");
       setResult(generated.trim());
+      captureOptional("local_ai_action_completed");
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Local AI request failed."); }
     finally { setBusy(false); }
   }

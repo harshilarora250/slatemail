@@ -74,7 +74,7 @@ tests/                     Unit/integration tests and Playwright scenarios
 ## 7. PostHog and opt-out
 
 - Ran the requested `npx -y @posthog/wizard@latest` after the app scaffold existed. It exited without modifying files because this environment has no interactive TTY (`PHW_CLI_INTERACTIVE_REQUIRED`); its `--ci` mode requires a real PostHog key, which is not configured. Manually integrated the supported `posthog-js` client with a privacy gate and placeholder environment values instead.
-- Central analytics state defaults on only where consent rules allow; persist preference locally. If consent is required, start disabled until the user opts in. A single capture wrapper checks the preference at capture time; opt-out calls PostHog opt-out, stops capture/autocapture/replay, and blocks route events for the rest of the session and future sessions.
+- Central analytics state defaults on only where consent rules allow; persist preference locally. Capture a short allowlist of content-free product milestones (`application_opened`, `mailbox_opened`, `message_opened`, `compose_opened`, `search_used`, confirmed send, settings/theme, and local AI actions) with no properties. If consent is required, start disabled until the user opts in. A single capture wrapper checks the preference at capture time; opt-out calls PostHog opt-out, stops capture/autocapture/replay, and blocks route events for the rest of the session and future sessions.
 - Session recording and autocapture are off. Use only an allowlist of low-risk events with no user properties or free-form values; do not transmit account identity, email, search terms, AI content, keys, or tokens. Opt-out itself is not captured.
 
 ## 8. Database schema and retention
@@ -115,7 +115,7 @@ Retain only account/session/sync/config data needed to operate the app; expire s
 
 ## 13. External credentials, variables, and manual setup
 
-Required only for corresponding live integrations: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `APP_URL`, `SESSION_SECRET`, `APP_ENCRYPTION_KEY`, and persistent `DATABASE_PATH`. Optional PostHog: `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST`. AI provider API keys are entered in Settings and encrypted server-side; optional local runtime URL is configured explicitly by the user. `.env.example` will contain placeholders only.
+Required only for corresponding live integrations: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `APP_URL`, `SESSION_SECRET`, `APP_ENCRYPTION_KEY`, and persistent `DATABASE_PATH`. Optional PostHog: `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` (legacy `NEXT_PUBLIC_POSTHOG_KEY` is also accepted), `NEXT_PUBLIC_POSTHOG_HOST`. AI provider API keys are entered in Settings and encrypted server-side; optional local runtime URL is configured explicitly by the user. `.env.example` will contain placeholders only.
 
 Manual setup also includes Google Cloud Gmail API enablement, consent screen/users and redirect URI; production HTTPS/persistent disk; PostHog project creation if desired; and Ollama/local model installation if local email AI is desired.
 

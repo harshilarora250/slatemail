@@ -90,6 +90,8 @@ export function MailboxApp() {
   const currentFolderRef = useRef(currentFolder);
   const searchValueRef = useRef(searchValue);
   const previousSearchValue = useRef(searchValue);
+  const searchEventActive = useRef(false);
+  const mailboxEventSent = useRef(false);
   const syncMailboxRef = useRef<() => Promise<void>>(async () => undefined);
   const searchRef = useRef<HTMLInputElement>(null);
   const activeRef = useRef<MailThread | null>(null);
@@ -172,6 +174,10 @@ export function MailboxApp() {
 
   useEffect(() => {
     if (!account.connected) return;
+    if (!mailboxEventSent.current) {
+      captureOptional("mailbox_opened");
+      mailboxEventSent.current = true;
+    }
     void loadMailbox(currentFolder, searchValue);
     void loadFolders();
     void flushPendingOperations();
@@ -183,9 +189,19 @@ export function MailboxApp() {
   }, [account.connected, currentFolder]);
 
   useEffect(() => {
+    if (!account.connected) mailboxEventSent.current = false;
+  }, [account.connected]);
+
+  useEffect(() => {
     if (!account.connected) return;
     if (previousSearchValue.current === searchValue) return;
     previousSearchValue.current = searchValue;
+    if (searchValue.trim() && !searchEventActive.current) {
+      captureOptional("search_used");
+      searchEventActive.current = true;
+    } else if (!searchValue.trim()) {
+      searchEventActive.current = false;
+    }
     const timer = window.setTimeout(() => void loadMailbox(currentFolder, searchValue), 300);
     return () => window.clearTimeout(timer);
     // The debounced callback intentionally uses the current folder/query closure.
@@ -389,6 +405,7 @@ export function MailboxApp() {
   }
 
   async function openThread(id: string) {
+    captureOptional("message_opened");
     const cached = await getCachedThread(id).catch(() => undefined);
     if (cached) setActiveThread(cached);
     if (navigator.onLine && account.connected) await loadThread(id);
@@ -495,6 +512,7 @@ export function MailboxApp() {
   syncMailboxRef.current = syncMailbox;
 
   function beginCompose(seed?: Partial<MailDraft>) {
+    captureOptional("compose_opened");
     const normalized = { ...seed, id: seed?.id ?? crypto.randomUUID(), revision: seed?.revision ?? 0 };
     activeDraftId.current = normalized.id;
     composeActive.current = true;
@@ -607,13 +625,13 @@ export function MailboxApp() {
             </section>
 
             <section className={`reading-pane ${mobileReading ? "mobile-open" : ""}`} aria-label="Message reading pane">
-              {activeThread ? <ReadingPane thread={activeThread} account={account} onBack={() => { setMobileReading(false); setActiveThread(null); }} onAction={performAction} onReply={(all) => replyTo(activeThread, all)} onForward={() => forwardThread(activeThread)} onAI={() => setAiThread(activeThread)} /> : <div className="reading-empty"><Mail size={21} strokeWidth={1.4} /><strong>Select a conversation</strong><span>Your message will open here.</span></div>}
+              {activeThread ? <ReadingPane thread={activeThread} account={account} onBack={() => { setMobileReading(false); setActiveThread(null); }} onAction={performAction} onReply={(all) => replyTo(activeThread, all)} onForward={() => forwardThread(activeThread)} onAI={() => { captureOptional("local_ai_actions_opened"); setAiThread(activeThread); }} /> : <div className="reading-empty"><Mail size={21} strokeWidth={1.4} /><strong>Select a conversation</strong><span>Your message will open here.</span></div>}
             </section>
           </div>
         )}
       </main>
 
-      {composeOpen && <ComposeDialog seed={composeSeed} account={account} onClose={() => { setComposeOpen(false); setComposeSeed(undefined); activeDraftId.current = undefined; composeActive.current = false; void refreshDraftCount(true, account.connected); void syncPendingDrafts(); if (currentFolder === "DRAFT") void loadMailbox("DRAFT", "", true); }} onDraftSaved={(draft) => { if (draft && composeActive.current) activeDraftId.current = draft.id; else if (draft) void syncPendingDrafts(); void refreshDraftCount(!!draft && draft.status === "synced", account.connected); }} onSent={() => { setComposeOpen(false); setComposeSeed(undefined); activeDraftId.current = undefined; composeActive.current = false; void refreshDraftCount(true, account.connected); void loadMailbox("SENT", ""); setCurrentFolder("SENT"); notify("Message sent"); }} />}
+      {composeOpen && <ComposeDialog seed={composeSeed} account={account} onClose={() => { setComposeOpen(false); setComposeSeed(undefined); activeDraftId.current = undefined; composeActive.current = false; void refreshDraftCount(true, account.connected); void syncPendingDrafts(); if (currentFolder === "DRAFT") void loadMailbox("DRAFT", "", true); }} onDraftSaved={(draft) => { if (draft && composeActive.current) activeDraftId.current = draft.id; else if (draft) void syncPendingDrafts(); void refreshDraftCount(!!draft && draft.status === "synced", account.connected); }} onSent={() => { captureOptional("message_send_confirmed"); setComposeOpen(false); setComposeSeed(undefined); activeDraftId.current = undefined; composeActive.current = false; void refreshDraftCount(true, account.connected); void loadMailbox("SENT", ""); setCurrentFolder("SENT"); notify("Message sent"); }} />}
       {aiThread && <AIActionDialog thread={aiThread} onClose={() => setAiThread(null)} onUseAsDraft={(draft) => { setAiThread(null); beginCompose(draft); }} />}
       {settingsOpen && <SettingsDialog preferences={preferences} account={account} onClose={() => setSettingsOpen(false)} onPreferencesChange={applyPreferences} onDisconnect={disconnected} onSync={() => void syncMailbox()} onCacheClear={async () => { await clearAllLocalData(); setThreads([]); setActiveThread(null); notify("Local cache and drafts cleared"); }} />}
       <div className="toast-region" role="status" aria-live="polite">{toast && <div className="toast">{toast}</div>}</div>
