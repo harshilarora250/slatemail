@@ -15,3 +15,4 @@ data/
 *.sqlite-wal
 next-env.d.ts
 *.tsbuildinfo
+skills/
