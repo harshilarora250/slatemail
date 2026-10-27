@@ -74,9 +74,9 @@ export function captureOptional(event: string): void {
   posthog.capture(event);
 }
 
-export function AnalyticsGate({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
+export function AnalyticsGate({ enabled, children }: { enabled: boolean | undefined; children: React.ReactNode }) {
   useEffect(() => {
-    setAnalyticsRuntimeEnabled(enabled);
+    if (enabled !== undefined) setAnalyticsRuntimeEnabled(enabled);
   }, [enabled]);
   return children;
 }

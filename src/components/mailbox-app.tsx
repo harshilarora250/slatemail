@@ -638,7 +638,7 @@ export function MailboxApp() {
     </div>
   );
 
-  return <AnalyticsGate enabled={preferencesReady && preferences.analyticsEnabled}>{content}</AnalyticsGate>;
+  return <AnalyticsGate enabled={preferencesReady ? preferences.analyticsEnabled : undefined}>{content}</AnalyticsGate>;
 }
 
 function ReadingPane({ thread, account, onBack, onAction, onReply, onForward, onAI }: {
